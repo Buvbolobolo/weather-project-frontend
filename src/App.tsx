@@ -634,12 +634,11 @@ function App() {
       return;
     }
 
-    navigator.serviceWorker.ready
-      .then((registration) => {
+    const initializeServiceWorker = async () => {
+      try {
+        const registration = await navigator.serviceWorker.register('/sw.js');
         pushRegistrationRef.current = registration;
-        return registration.pushManager.getSubscription();
-      })
-      .then((subscription) => {
+        const subscription = await registration.pushManager.getSubscription();
         if (!subscription) {
           return;
         }
@@ -664,10 +663,12 @@ function App() {
             auth: subscriptionJson.keys.auth,
           },
         });
-      })
-      .catch((registrationError) => {
+      } catch (registrationError) {
         console.error(registrationError);
-      });
+      }
+    };
+
+    void initializeServiceWorker();
   }, []);
 
   useEffect(() => {
