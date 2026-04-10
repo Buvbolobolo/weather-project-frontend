@@ -12,6 +12,10 @@ import {
 import 'leaflet/dist/leaflet.css';
 import './App.css';
 
+
+axios.defaults.baseURL = process.env.REACT_APP_API_URL || '';
+
+
 delete (L.Icon.Default.prototype as { _getIconUrl?: unknown })._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
