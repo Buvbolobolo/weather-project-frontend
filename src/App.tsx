@@ -132,6 +132,14 @@ type PushSubscriptionPayload = {
   };
 };
 
+type BeforeInstallPromptEvent = Event & {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{
+    outcome: 'accepted' | 'dismissed';
+    platform: string;
+  }>;
+};
+
 const buildPointId = (latitude: number, longitude: number): string =>
   `${latitude.toFixed(4)}_${longitude.toFixed(4)}`;
 
@@ -575,6 +583,17 @@ function App() {
   const [pushSubscription, setPushSubscription] = useState<PushSubscriptionPayload | null>(
     loadPushSubscriptionFromStorage
   );
+  const [installPromptEvent, setInstallPromptEvent] = useState<BeforeInstallPromptEvent | null>(
+    null
+  );
+  const [isStandaloneApp, setIsStandaloneApp] = useState<boolean>(() => {
+    if (typeof window === 'undefined') {
+      return false;
+    }
+
+    const iosStandalone = (window.navigator as Navigator & { standalone?: boolean }).standalone;
+    return window.matchMedia('(display-mode: standalone)').matches || iosStandalone === true;
+  });
   const previousAlertIdsRef = useRef<string[]>(tomorrowAlerts.map((alertItem) => alertItem.id));
   const pushRegistrationRef = useRef<ServiceWorkerRegistration | null>(null);
   const pushPublicKeyRef = useRef<string | null>(null);
@@ -669,6 +688,54 @@ function App() {
     };
 
     void initializeServiceWorker();
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const mediaQuery = window.matchMedia('(display-mode: standalone)');
+    const syncStandaloneState = () => {
+      const iosStandalone = (window.navigator as Navigator & { standalone?: boolean }).standalone;
+      setIsStandaloneApp(mediaQuery.matches || iosStandalone === true);
+    };
+
+    const handleBeforeInstallPrompt = (event: Event) => {
+      const installEvent = event as BeforeInstallPromptEvent;
+      installEvent.preventDefault();
+      setInstallPromptEvent(installEvent);
+    };
+
+    const handleAppInstalled = () => {
+      setIsStandaloneApp(true);
+      setInstallPromptEvent(null);
+      setToastLines(['Приложение установлено. Теперь его можно открывать как отдельное приложение.']);
+    };
+
+    syncStandaloneState();
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt as EventListener);
+    window.addEventListener('appinstalled', handleAppInstalled);
+
+    if (typeof mediaQuery.addEventListener === 'function') {
+      mediaQuery.addEventListener('change', syncStandaloneState);
+    } else {
+      mediaQuery.addListener(syncStandaloneState);
+    }
+
+    return () => {
+      window.removeEventListener(
+        'beforeinstallprompt',
+        handleBeforeInstallPrompt as EventListener
+      );
+      window.removeEventListener('appinstalled', handleAppInstalled);
+
+      if (typeof mediaQuery.removeEventListener === 'function') {
+        mediaQuery.removeEventListener('change', syncStandaloneState);
+      } else {
+        mediaQuery.removeListener(syncStandaloneState);
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -1399,6 +1466,28 @@ function App() {
     setTheme((currentTheme) => (currentTheme === 'light' ? 'dark' : 'light'));
   };
 
+  const handleInstallApp = async () => {
+    if (!installPromptEvent) {
+      setToastLines([
+        'Установка пока недоступна. Откройте сайт по HTTPS и немного подождите повторного показа кнопки.',
+      ]);
+      return;
+    }
+
+    try {
+      await installPromptEvent.prompt();
+      const choice = await installPromptEvent.userChoice;
+      if (choice.outcome === 'accepted') {
+        setToastLines(['Установка приложения подтверждена.']);
+      }
+    } catch (installError) {
+      console.error(installError);
+      setToastLines(['Не удалось запустить установку приложения.']);
+    } finally {
+      setInstallPromptEvent(null);
+    }
+  };
+
   const handleTestPush = async () => {
     try {
       if (typeof window === 'undefined' || !('Notification' in window)) {
@@ -1502,6 +1591,8 @@ function App() {
     setToastLines([]);
   };
 
+  const canShowInstallButton = Boolean(installPromptEvent) && !isStandaloneApp;
+
   return (
     <div className={`app-shell app-shell--${theme}`}>
       <main className="page">
@@ -1516,6 +1607,11 @@ function App() {
           </div>
 
           <div className="page-toolbar">
+            {canShowInstallButton && (
+              <button className="install-app-button" onClick={handleInstallApp} type="button">
+                Установить приложение
+              </button>
+            )}
             <button className="browser-notification-toggle" onClick={handleTestPush} type="button">
               Тест push
             </button>
