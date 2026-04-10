@@ -176,6 +176,10 @@
   margin-bottom: 24px;
 }
 
+.hero--single {
+  grid-template-columns: 1fr;
+}
+
 .hero--centered .hero__panel {
   width: 100%;
   max-width: none;
@@ -349,7 +353,6 @@
 
 .map-card {
   position: relative;
-  padding-bottom: 86px;
 }
 
 .map-card__header,
@@ -392,24 +395,6 @@
   font: inherit;
   font-weight: 600;
   cursor: pointer;
-}
-
-.map__top-button {
-  position: absolute;
-  right: 28px;
-  bottom: 28px;
-  padding: 10px 16px;
-  border: none;
-  border-radius: 999px;
-  background: var(--accent);
-  color: #fff;
-  font: inherit;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.map__top-button:hover {
-  opacity: 0.92;
 }
 
 .map-card__body {
@@ -867,15 +852,6 @@
 
   .notification-settings__toggle {
     width: 100%;
-  }
-
-  .map-card {
-    padding-bottom: 76px;
-  }
-
-  .map__top-button {
-    right: 20px;
-    bottom: 20px;
   }
 
   .metrics-grid {

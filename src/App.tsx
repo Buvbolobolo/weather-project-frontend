@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
 import L from 'leaflet';
 import {
@@ -1634,7 +1634,7 @@ function App() {
           </div>
         </div>
 
-        <section className="hero hero--centered" ref={heroSectionRef}>
+                <section className="hero hero--centered hero--single" ref={heroSectionRef}>
           <div className="hero__panel hero__panel--summary">
             <p className="hero__panel-label">{overview?.title ?? 'Сводка'}</p>
             <h2>{heroCity?.city ?? 'Выберите город на карте или в Избранном'}</h2>
@@ -1646,8 +1646,56 @@ function App() {
             </p>
             <p className="hero__condition">{heroCity?.condition ?? ''}</p>
           </div>
+        </section>
 
-          <div className="controls-card controls-card--hero">
+        <div className="weather-card">
+            {(loading || weatherLoading) && <p className="status">Загружаем данные...</p>}
+            {!loading && error && <p className="status status--error">{error}</p>}
+
+            {!loading && weather && (
+              <>
+                <div className="weather-card__header">
+                  <div>
+                    <p className="section-label">Сейчас</p>
+                    <h2>
+                      {weather.city}, {weather.country}
+                    </h2>
+                    <p className="updated-at">Обновлено: {weather.updated_at}</p>
+                  </div>
+
+                  <div className="weather-card__hero-value">
+                    {formatTemperature(weather.temperature_c)}
+                  </div>
+                </div>
+
+                <p className="weather-condition">{weather.condition}</p>
+                <div className="metrics-grid">
+                  <article className="metric">
+                    <span>Ощущается как</span>
+                    <strong>{formatTemperature(weather.feels_like_c)}</strong>
+                  </article>
+                  <article className="metric">
+                    <span>Влажность</span>
+                    <strong>{weather.humidity}%</strong>
+                  </article>
+                  <article className="metric">
+                    <span>Ветер</span>
+                    <strong>{weather.wind_speed} м/с</strong>
+                  </article>
+                  <article className="metric">
+                    <span>Давление</span>
+                    <strong>{weather.pressure_mmhg} мм рт. ст.</strong>
+                  </article>
+                  <article className="metric">
+                    <span>Видимость</span>
+                    <strong>{weather.visibility_km} км</strong>
+                  </article>
+                </div>
+              </>
+            )}
+          </div>
+
+        <div className="controls-card controls-card--hero">
             <div>
               <p className="section-label">Выбор города</p>
               <h3>Быстрый переход к готовым локациям</h3>
@@ -1697,51 +1745,8 @@ function App() {
             </div>
 
           </div>
-        </section>
 
-        <section className="dashboard">
-          <aside className="hero__panel hero__settings" aria-label="Настройка уведомлений">
-            <p className="hero__panel-label">Настройка уведомлений</p>
-            <h3>Выберите параметры в алерте</h3>
-            <p className="hero__settings-hint">
-              {weather
-                ? `${weather.city}, ${weather.country}`
-                : 'Выберите город для настройки уведомлений'}
-            </p>
-
-            <div className="hero__settings-options">
-              {NOTIFICATION_PREFERENCE_OPTIONS.map((option) => (
-                <label className="hero__settings-option" key={option.key}>
-                  <input
-                    checked={notificationPreferences[option.key]}
-                    onChange={() => handleNotificationPreferenceToggle(option.key)}
-                    type="checkbox"
-                  />
-                  <span>{option.label}</span>
-                </label>
-              ))}
-            </div>
-
-            <button
-              className={`notification-settings__toggle ${
-                isTomorrowAlertEnabled
-                  ? 'notification-settings__toggle--off'
-                  : 'notification-settings__toggle--on'
-              }`}
-              disabled={!weather || !isCurrentFavorite}
-              onClick={handleToggleTomorrowAlert}
-              type="button"
-            >
-              {isTomorrowAlertEnabled ? 'Отключить уведомления' : 'Включить уведомления'}
-            </button>
-            {!isCurrentFavorite && (
-              <small className="hero__settings-note">
-                Добавьте выбранный город в избранное, чтобы включить уведомления.
-              </small>
-            )}
-          </aside>
-
-          <div className="controls-card controls-card--favorites">
+        <div className="controls-card controls-card--favorites">
             <div>
               <p className="section-label">Избранное</p>
               <h3>Сохраненные локации</h3>
@@ -1786,55 +1791,47 @@ function App() {
             </div>
           </div>
 
-          <div className="weather-card weather-card--dashboard">
-            {(loading || weatherLoading) && <p className="status">Загружаем данные...</p>}
-            {!loading && error && <p className="status status--error">{error}</p>}
+        <aside className="hero__panel hero__settings" aria-label="Настройка уведомлений">
+            <p className="hero__panel-label">Настройка уведомлений</p>
+            <h3>Выберите параметры в алерте</h3>
+            <p className="hero__settings-hint">
+              {weather
+                ? `${weather.city}, ${weather.country}`
+                : 'Выберите город для настройки уведомлений'}
+            </p>
 
-            {!loading && weather && (
-              <>
-                <div className="weather-card__header">
-                  <div>
-                    <p className="section-label">Сейчас</p>
-                    <h2>
-                      {weather.city}, {weather.country}
-                    </h2>
-                    <p className="updated-at">Обновлено: {weather.updated_at}</p>
-                  </div>
+            <div className="hero__settings-options">
+              {NOTIFICATION_PREFERENCE_OPTIONS.map((option) => (
+                <label className="hero__settings-option" key={option.key}>
+                  <input
+                    checked={notificationPreferences[option.key]}
+                    onChange={() => handleNotificationPreferenceToggle(option.key)}
+                    type="checkbox"
+                  />
+                  <span>{option.label}</span>
+                </label>
+              ))}
+            </div>
 
-                  <div className="weather-card__hero-value">
-                    {formatTemperature(weather.temperature_c)}
-                  </div>
-                </div>
-
-                <p className="weather-condition">{weather.condition}</p>
-                <div className="metrics-grid">
-                  <article className="metric">
-                    <span>Ощущается как</span>
-                    <strong>{formatTemperature(weather.feels_like_c)}</strong>
-                  </article>
-                  <article className="metric">
-                    <span>Влажность</span>
-                    <strong>{weather.humidity}%</strong>
-                  </article>
-                  <article className="metric">
-                    <span>Ветер</span>
-                    <strong>{weather.wind_speed} м/с</strong>
-                  </article>
-                  <article className="metric">
-                    <span>Давление</span>
-                    <strong>{weather.pressure_mmhg} мм рт. ст.</strong>
-                  </article>
-                  <article className="metric">
-                    <span>Видимость</span>
-                    <strong>{weather.visibility_km} км</strong>
-                  </article>
-                </div>
-              </>
+            <button
+              className={`notification-settings__toggle ${
+                isTomorrowAlertEnabled
+                  ? 'notification-settings__toggle--off'
+                  : 'notification-settings__toggle--on'
+              }`}
+              disabled={!weather || !isCurrentFavorite}
+              onClick={handleToggleTomorrowAlert}
+              type="button"
+            >
+              {isTomorrowAlertEnabled ? 'Отключить уведомления' : 'Включить уведомления'}
+            </button>
+            {!isCurrentFavorite && (
+              <small className="hero__settings-note">
+                Добавьте выбранный город в избранное, чтобы включить уведомления.
+              </small>
             )}
-          </div>
-        </section>
-
-        <section className="hourly-card" ref={hourlySectionRef}>
+          </aside>
+<section className="hourly-card" ref={hourlySectionRef}>
           <div className="forecast-card__header">
             <div>
               <p className="section-label">Почасовой прогноз</p>
@@ -1966,9 +1963,6 @@ function App() {
               </form>
             </div>
           </div>
-          <button className="map__top-button" onClick={handleScrollToTop} type="button">
-            Перейти в начало
-          </button>
         </section>
 
         {toastLines.length > 0 && (
@@ -1997,3 +1991,4 @@ function App() {
 }
 
 export default App;
+
