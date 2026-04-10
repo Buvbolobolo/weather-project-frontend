@@ -351,6 +351,13 @@
   margin-bottom: 24px;
 }
 
+.weather-card,
+.controls-card--hero,
+.controls-card--favorites,
+.hero__settings {
+  margin-bottom: 24px;
+}
+
 .map-card {
   position: relative;
 }
