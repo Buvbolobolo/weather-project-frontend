@@ -1437,6 +1437,19 @@ function App() {
 
       if (response.data.sent > 0) {
         setToastLines(['Тест push отправлен. Проверьте системное уведомление браузера.']);
+        if (typeof window !== 'undefined' && 'Notification' in window) {
+          try {
+            if (window.Notification.permission === 'granted') {
+              new window.Notification('Тест push-уведомления', {
+                body: 'Проверка канала push: если вы видите это сообщение, уведомления работают.',
+                icon: '/favicon.ico',
+                tag: 'manual-push-test-fallback',
+              });
+            }
+          } catch (notificationError) {
+            console.error(notificationError);
+          }
+        }
       } else {
         setToastLines(['Тест push не отправлен. Проверьте подписку и разрешение уведомлений.']);
       }
