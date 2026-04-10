@@ -1198,7 +1198,9 @@ function App() {
           favorites.find((favorite) => favorite.id === selectedPointId) ?? null;
         const isGenericLocation =
           response.data.city === 'Точка на карте' ||
-          response.data.country === 'Неизвестная страна';
+          response.data.country === 'Неизвестная страна' ||
+          response.data.country === 'По координатам' ||
+          response.data.city.startsWith('Точка ');
 
         if (isGenericLocation && favoriteForPoint) {
           setWeather({
