@@ -1125,7 +1125,22 @@ function App() {
             longitude: selectedPoint.longitude,
           },
         });
-        setWeather(response.data);
+        const selectedPointId = buildPointId(selectedPoint.latitude, selectedPoint.longitude);
+        const favoriteForPoint =
+          favorites.find((favorite) => favorite.id === selectedPointId) ?? null;
+        const isGenericLocation =
+          response.data.city === 'Точка на карте' ||
+          response.data.country === 'Неизвестная страна';
+
+        if (isGenericLocation && favoriteForPoint) {
+          setWeather({
+            ...response.data,
+            city: favoriteForPoint.label,
+            country: favoriteForPoint.country || response.data.country,
+          });
+        } else {
+          setWeather(response.data);
+        }
       } catch (requestError) {
         setError('Не удалось загрузить прогноз для выбранной точки.');
         console.error(requestError);
@@ -1135,7 +1150,7 @@ function App() {
     };
 
     loadWeatherByCoordinates();
-  }, [selectedPoint, selectionMode]);
+  }, [favorites, selectedPoint, selectionMode]);
 
   const heroCity = weather
     ? {
