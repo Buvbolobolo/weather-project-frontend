@@ -1,4 +1,4 @@
-:root {
+﻿:root {
   --bg: #eef4ff;
   --panel: rgba(255, 255, 255, 0.8);
   --panel-strong: #ffffff;
@@ -16,6 +16,7 @@
 
 .app-shell {
   min-height: 100vh;
+  min-height: 100dvh;
   background:
     radial-gradient(circle at top left, rgba(56, 189, 248, 0.22), transparent 30%),
     radial-gradient(circle at top right, rgba(251, 191, 36, 0.2), transparent 25%),
@@ -42,7 +43,10 @@
 .page {
   width: min(1240px, calc(100% - 32px));
   margin: 0 auto;
-  padding: 40px 0 56px;
+  padding:
+    calc(20px + env(safe-area-inset-top))
+    0
+    calc(56px + env(safe-area-inset-bottom));
 }
 
 .page-toolbar {
@@ -68,6 +72,7 @@
   color: var(--text);
   font: inherit;
   font-weight: 600;
+  min-height: 44px;
   padding: 10px 16px;
   cursor: pointer;
 }
@@ -83,6 +88,7 @@
   color: var(--text);
   font: inherit;
   font-weight: 600;
+  min-height: 44px;
   padding: 10px 16px;
   cursor: pointer;
 }
@@ -116,6 +122,22 @@
   cursor: default;
 }
 
+.install-app-button {
+  border: none;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  min-height: 44px;
+  padding: 10px 16px;
+  cursor: pointer;
+}
+
+.install-app-button:hover {
+  opacity: 0.92;
+}
+
 .hero-shortcuts {
   display: flex;
   gap: 10px;
@@ -130,6 +152,7 @@
   color: #fff;
   font: inherit;
   font-weight: 600;
+  min-height: 44px;
   padding: 10px 16px;
   cursor: pointer;
 }
@@ -151,6 +174,10 @@
   grid-template-columns: minmax(0, 1.45fr) minmax(320px, 0.95fr);
   justify-items: stretch;
   margin-bottom: 24px;
+}
+
+.hero--single {
+  grid-template-columns: 1fr;
 }
 
 .hero--centered .hero__panel {
@@ -324,9 +351,15 @@
   margin-bottom: 24px;
 }
 
+.weather-card,
+.controls-card--hero,
+.controls-card--favorites,
+.hero__settings {
+  margin-bottom: 24px;
+}
+
 .map-card {
   position: relative;
-  padding-bottom: 86px;
 }
 
 .map-card__header,
@@ -364,28 +397,11 @@
   border-radius: 12px;
   background: var(--accent);
   color: #fff;
+  min-height: 44px;
   padding: 10px 14px;
   font: inherit;
   font-weight: 600;
   cursor: pointer;
-}
-
-.map__top-button {
-  position: absolute;
-  right: 28px;
-  bottom: 28px;
-  padding: 10px 16px;
-  border: none;
-  border-radius: 999px;
-  background: var(--accent);
-  color: #fff;
-  font: inherit;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.map__top-button:hover {
-  opacity: 0.92;
 }
 
 .map-card__body {
@@ -540,6 +556,7 @@
 }
 
 .favorite-action {
+  min-height: 44px;
   padding: 10px 14px;
   border: none;
   border-radius: 999px;
@@ -592,6 +609,7 @@
   background: rgba(239, 68, 68, 0.12);
   color: #b91c1c;
   border-radius: 12px;
+  min-height: 44px;
   padding: 10px 12px;
   cursor: pointer;
 }
@@ -701,7 +719,7 @@
 .toast-banner {
   position: fixed;
   right: 20px;
-  bottom: 20px;
+  bottom: calc(76px + env(safe-area-inset-bottom));
   width: min(520px, calc(100% - 32px));
   z-index: 2000;
   border: 2px solid #f59e0b;
@@ -747,7 +765,7 @@
 .scroll-top-button {
   position: fixed;
   right: 20px;
-  bottom: 20px;
+  bottom: calc(20px + env(safe-area-inset-bottom));
   width: 44px;
   height: 44px;
   border: none;
@@ -798,7 +816,10 @@
 @media (max-width: 640px) {
   .page {
     width: min(100% - 20px, 100%);
-    padding: 20px 0 32px;
+    padding:
+      calc(16px + env(safe-area-inset-top))
+      0
+      calc(36px + env(safe-area-inset-bottom));
   }
 
   .top-actions {
@@ -812,7 +833,8 @@
   }
 
   .browser-notification-toggle,
-  .theme-toggle {
+  .theme-toggle,
+  .install-app-button {
     width: 100%;
   }
 
@@ -821,6 +843,7 @@
   .controls-card,
   .weather-card,
   .forecast-card,
+  .hourly-card,
   .map-card {
     padding: 20px;
     border-radius: 24px;
@@ -838,15 +861,6 @@
     width: 100%;
   }
 
-  .map-card {
-    padding-bottom: 76px;
-  }
-
-  .map__top-button {
-    right: 20px;
-    bottom: 20px;
-  }
-
   .metrics-grid {
     grid-template-columns: 1fr;
   }
@@ -860,12 +874,17 @@
   }
 
   .map-city-search {
+    flex-direction: column;
     width: 100%;
   }
 
   .map-city-search__input {
-    min-width: 0;
-    flex: 1;
+    width: 100%;
+    min-height: 44px;
+  }
+
+  .map-city-search__button {
+    width: 100%;
   }
 
   .leaflet-map,
@@ -881,4 +900,57 @@
   .hero-shortcut-button {
     width: 100%;
   }
+
+  .forecast-grid {
+    grid-auto-columns: minmax(220px, 220px);
+  }
+
+  .hourly-grid {
+    grid-auto-columns: minmax(172px, 172px);
+  }
+
+  .toast-banner {
+    right: 12px;
+    bottom: calc(74px + env(safe-area-inset-bottom));
+    width: min(520px, calc(100% - 24px));
+  }
+
+  .scroll-top-button {
+    right: 12px;
+    width: 48px;
+    height: 48px;
+    font-size: 1.5rem;
+  }
 }
+
+@media (max-width: 412px) {
+  .hero__content h1 {
+    font-size: clamp(2rem, 11vw, 2.7rem);
+  }
+
+  .hero__temperature,
+  .weather-card__hero-value {
+    font-size: clamp(2.2rem, 10vw, 3rem);
+  }
+
+  .forecast-grid {
+    grid-auto-columns: minmax(205px, 205px);
+  }
+
+  .hourly-grid {
+    grid-auto-columns: minmax(162px, 162px);
+  }
+}
+
+@media (max-width: 360px) {
+  .hero__content,
+  .hero__panel,
+  .controls-card,
+  .weather-card,
+  .forecast-card,
+  .hourly-card,
+  .map-card {
+    padding: 16px;
+  }
+}
+

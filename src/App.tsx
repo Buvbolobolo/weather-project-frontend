@@ -132,6 +132,14 @@ type PushSubscriptionPayload = {
   };
 };
 
+type BeforeInstallPromptEvent = Event & {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{
+    outcome: 'accepted' | 'dismissed';
+    platform: string;
+  }>;
+};
+
 const buildPointId = (latitude: number, longitude: number): string =>
   `${latitude.toFixed(4)}_${longitude.toFixed(4)}`;
 
@@ -575,6 +583,17 @@ function App() {
   const [pushSubscription, setPushSubscription] = useState<PushSubscriptionPayload | null>(
     loadPushSubscriptionFromStorage
   );
+  const [installPromptEvent, setInstallPromptEvent] = useState<BeforeInstallPromptEvent | null>(
+    null
+  );
+  const [isStandaloneApp, setIsStandaloneApp] = useState<boolean>(() => {
+    if (typeof window === 'undefined') {
+      return false;
+    }
+
+    const iosStandalone = (window.navigator as Navigator & { standalone?: boolean }).standalone;
+    return window.matchMedia('(display-mode: standalone)').matches || iosStandalone === true;
+  });
   const previousAlertIdsRef = useRef<string[]>(tomorrowAlerts.map((alertItem) => alertItem.id));
   const pushRegistrationRef = useRef<ServiceWorkerRegistration | null>(null);
   const pushPublicKeyRef = useRef<string | null>(null);
@@ -634,12 +653,11 @@ function App() {
       return;
     }
 
-    navigator.serviceWorker.ready
-      .then((registration) => {
+    const initializeServiceWorker = async () => {
+      try {
+        const registration = await navigator.serviceWorker.register('/sw.js');
         pushRegistrationRef.current = registration;
-        return registration.pushManager.getSubscription();
-      })
-      .then((subscription) => {
+        const subscription = await registration.pushManager.getSubscription();
         if (!subscription) {
           return;
         }
@@ -664,10 +682,60 @@ function App() {
             auth: subscriptionJson.keys.auth,
           },
         });
-      })
-      .catch((registrationError) => {
+      } catch (registrationError) {
         console.error(registrationError);
-      });
+      }
+    };
+
+    void initializeServiceWorker();
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const mediaQuery = window.matchMedia('(display-mode: standalone)');
+    const syncStandaloneState = () => {
+      const iosStandalone = (window.navigator as Navigator & { standalone?: boolean }).standalone;
+      setIsStandaloneApp(mediaQuery.matches || iosStandalone === true);
+    };
+
+    const handleBeforeInstallPrompt = (event: Event) => {
+      const installEvent = event as BeforeInstallPromptEvent;
+      installEvent.preventDefault();
+      setInstallPromptEvent(installEvent);
+    };
+
+    const handleAppInstalled = () => {
+      setIsStandaloneApp(true);
+      setInstallPromptEvent(null);
+      setToastLines(['Приложение установлено. Теперь его можно открывать как отдельное приложение.']);
+    };
+
+    syncStandaloneState();
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt as EventListener);
+    window.addEventListener('appinstalled', handleAppInstalled);
+
+    if (typeof mediaQuery.addEventListener === 'function') {
+      mediaQuery.addEventListener('change', syncStandaloneState);
+    } else {
+      mediaQuery.addListener(syncStandaloneState);
+    }
+
+    return () => {
+      window.removeEventListener(
+        'beforeinstallprompt',
+        handleBeforeInstallPrompt as EventListener
+      );
+      window.removeEventListener('appinstalled', handleAppInstalled);
+
+      if (typeof mediaQuery.removeEventListener === 'function') {
+        mediaQuery.removeEventListener('change', syncStandaloneState);
+      } else {
+        mediaQuery.removeListener(syncStandaloneState);
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -1125,7 +1193,24 @@ function App() {
             longitude: selectedPoint.longitude,
           },
         });
-        setWeather(response.data);
+        const selectedPointId = buildPointId(selectedPoint.latitude, selectedPoint.longitude);
+        const favoriteForPoint =
+          favorites.find((favorite) => favorite.id === selectedPointId) ?? null;
+        const isGenericLocation =
+          response.data.city === 'Точка на карте' ||
+          response.data.country === 'Неизвестная страна' ||
+          response.data.country === 'По координатам' ||
+          response.data.city.startsWith('Точка ');
+
+        if (isGenericLocation && favoriteForPoint) {
+          setWeather({
+            ...response.data,
+            city: favoriteForPoint.label,
+            country: favoriteForPoint.country || response.data.country,
+          });
+        } else {
+          setWeather(response.data);
+        }
       } catch (requestError) {
         setError('Не удалось загрузить прогноз для выбранной точки.');
         console.error(requestError);
@@ -1135,7 +1220,7 @@ function App() {
     };
 
     loadWeatherByCoordinates();
-  }, [selectedPoint, selectionMode]);
+  }, [favorites, selectedPoint, selectionMode]);
 
   const heroCity = weather
     ? {
@@ -1383,6 +1468,41 @@ function App() {
     setTheme((currentTheme) => (currentTheme === 'light' ? 'dark' : 'light'));
   };
 
+  const handleInstallApp = async () => {
+    if (!installPromptEvent) {
+      const isIosSafari =
+        typeof window !== 'undefined' &&
+        /iphone|ipad|ipod/i.test(window.navigator.userAgent) &&
+        /safari/i.test(window.navigator.userAgent) &&
+        !/crios|fxios|edgios|chrome|android/i.test(window.navigator.userAgent);
+
+      if (isIosSafari) {
+        setToastLines([
+          'Для iPhone/iPad: нажмите Поделиться в Safari и выберите "На экран Домой".',
+        ]);
+        return;
+      }
+
+      setToastLines([
+        'Установка пока недоступна в этом браузере. Попробуйте Chrome/Edge на HTTPS-домене.',
+      ]);
+      return;
+    }
+
+    try {
+      await installPromptEvent.prompt();
+      const choice = await installPromptEvent.userChoice;
+      if (choice.outcome === 'accepted') {
+        setToastLines(['Установка приложения подтверждена.']);
+      }
+    } catch (installError) {
+      console.error(installError);
+      setToastLines(['Не удалось запустить установку приложения.']);
+    } finally {
+      setInstallPromptEvent(null);
+    }
+  };
+
   const handleTestPush = async () => {
     try {
       if (typeof window === 'undefined' || !('Notification' in window)) {
@@ -1422,6 +1542,19 @@ function App() {
 
       if (response.data.sent > 0) {
         setToastLines(['Тест push отправлен. Проверьте системное уведомление браузера.']);
+        if (typeof window !== 'undefined' && 'Notification' in window) {
+          try {
+            if (window.Notification.permission === 'granted') {
+              new window.Notification('Тест push-уведомления', {
+                body: 'Проверка канала push: если вы видите это сообщение, уведомления работают.',
+                icon: '/favicon.ico',
+                tag: 'manual-push-test-fallback',
+              });
+            }
+          } catch (notificationError) {
+            console.error(notificationError);
+          }
+        }
       } else {
         setToastLines(['Тест push не отправлен. Проверьте подписку и разрешение уведомлений.']);
       }
@@ -1473,6 +1606,8 @@ function App() {
     setToastLines([]);
   };
 
+  const canShowInstallButton = !isStandaloneApp;
+
   return (
     <div className={`app-shell app-shell--${theme}`}>
       <main className="page">
@@ -1487,6 +1622,11 @@ function App() {
           </div>
 
           <div className="page-toolbar">
+            {canShowInstallButton && (
+              <button className="install-app-button" onClick={handleInstallApp} type="button">
+                Установить приложение
+              </button>
+            )}
             <button className="browser-notification-toggle" onClick={handleTestPush} type="button">
               Тест push
             </button>
@@ -1496,7 +1636,7 @@ function App() {
           </div>
         </div>
 
-        <section className="hero hero--centered" ref={heroSectionRef}>
+                <section className="hero hero--centered hero--single" ref={heroSectionRef}>
           <div className="hero__panel hero__panel--summary">
             <p className="hero__panel-label">{overview?.title ?? 'Сводка'}</p>
             <h2>{heroCity?.city ?? 'Выберите город на карте или в Избранном'}</h2>
@@ -1508,8 +1648,56 @@ function App() {
             </p>
             <p className="hero__condition">{heroCity?.condition ?? ''}</p>
           </div>
+        </section>
 
-          <div className="controls-card controls-card--hero">
+        <div className="weather-card">
+            {(loading || weatherLoading) && <p className="status">Загружаем данные...</p>}
+            {!loading && error && <p className="status status--error">{error}</p>}
+
+            {!loading && weather && (
+              <>
+                <div className="weather-card__header">
+                  <div>
+                    <p className="section-label">Сейчас</p>
+                    <h2>
+                      {weather.city}, {weather.country}
+                    </h2>
+                    <p className="updated-at">Обновлено: {weather.updated_at}</p>
+                  </div>
+
+                  <div className="weather-card__hero-value">
+                    {formatTemperature(weather.temperature_c)}
+                  </div>
+                </div>
+
+                <p className="weather-condition">{weather.condition}</p>
+                <div className="metrics-grid">
+                  <article className="metric">
+                    <span>Ощущается как</span>
+                    <strong>{formatTemperature(weather.feels_like_c)}</strong>
+                  </article>
+                  <article className="metric">
+                    <span>Влажность</span>
+                    <strong>{weather.humidity}%</strong>
+                  </article>
+                  <article className="metric">
+                    <span>Ветер</span>
+                    <strong>{weather.wind_speed} м/с</strong>
+                  </article>
+                  <article className="metric">
+                    <span>Давление</span>
+                    <strong>{weather.pressure_mmhg} мм рт. ст.</strong>
+                  </article>
+                  <article className="metric">
+                    <span>Видимость</span>
+                    <strong>{weather.visibility_km} км</strong>
+                  </article>
+                </div>
+              </>
+            )}
+          </div>
+
+        <div className="controls-card controls-card--hero">
             <div>
               <p className="section-label">Выбор города</p>
               <h3>Быстрый переход к готовым локациям</h3>
@@ -1559,51 +1747,8 @@ function App() {
             </div>
 
           </div>
-        </section>
 
-        <section className="dashboard">
-          <aside className="hero__panel hero__settings" aria-label="Настройка уведомлений">
-            <p className="hero__panel-label">Настройка уведомлений</p>
-            <h3>Выберите параметры в алерте</h3>
-            <p className="hero__settings-hint">
-              {weather
-                ? `${weather.city}, ${weather.country}`
-                : 'Выберите город для настройки уведомлений'}
-            </p>
-
-            <div className="hero__settings-options">
-              {NOTIFICATION_PREFERENCE_OPTIONS.map((option) => (
-                <label className="hero__settings-option" key={option.key}>
-                  <input
-                    checked={notificationPreferences[option.key]}
-                    onChange={() => handleNotificationPreferenceToggle(option.key)}
-                    type="checkbox"
-                  />
-                  <span>{option.label}</span>
-                </label>
-              ))}
-            </div>
-
-            <button
-              className={`notification-settings__toggle ${
-                isTomorrowAlertEnabled
-                  ? 'notification-settings__toggle--off'
-                  : 'notification-settings__toggle--on'
-              }`}
-              disabled={!weather || !isCurrentFavorite}
-              onClick={handleToggleTomorrowAlert}
-              type="button"
-            >
-              {isTomorrowAlertEnabled ? 'Отключить уведомления' : 'Включить уведомления'}
-            </button>
-            {!isCurrentFavorite && (
-              <small className="hero__settings-note">
-                Добавьте выбранный город в избранное, чтобы включить уведомления.
-              </small>
-            )}
-          </aside>
-
-          <div className="controls-card controls-card--favorites">
+        <div className="controls-card controls-card--favorites">
             <div>
               <p className="section-label">Избранное</p>
               <h3>Сохраненные локации</h3>
@@ -1648,55 +1793,47 @@ function App() {
             </div>
           </div>
 
-          <div className="weather-card weather-card--dashboard">
-            {(loading || weatherLoading) && <p className="status">Загружаем данные...</p>}
-            {!loading && error && <p className="status status--error">{error}</p>}
+        <aside className="hero__panel hero__settings" aria-label="Настройка уведомлений">
+            <p className="hero__panel-label">Настройка уведомлений</p>
+            <h3>Выберите параметры в алерте</h3>
+            <p className="hero__settings-hint">
+              {weather
+                ? `${weather.city}, ${weather.country}`
+                : 'Выберите город для настройки уведомлений'}
+            </p>
 
-            {!loading && weather && (
-              <>
-                <div className="weather-card__header">
-                  <div>
-                    <p className="section-label">Сейчас</p>
-                    <h2>
-                      {weather.city}, {weather.country}
-                    </h2>
-                    <p className="updated-at">Обновлено: {weather.updated_at}</p>
-                  </div>
+            <div className="hero__settings-options">
+              {NOTIFICATION_PREFERENCE_OPTIONS.map((option) => (
+                <label className="hero__settings-option" key={option.key}>
+                  <input
+                    checked={notificationPreferences[option.key]}
+                    onChange={() => handleNotificationPreferenceToggle(option.key)}
+                    type="checkbox"
+                  />
+                  <span>{option.label}</span>
+                </label>
+              ))}
+            </div>
 
-                  <div className="weather-card__hero-value">
-                    {formatTemperature(weather.temperature_c)}
-                  </div>
-                </div>
-
-                <p className="weather-condition">{weather.condition}</p>
-                <div className="metrics-grid">
-                  <article className="metric">
-                    <span>Ощущается как</span>
-                    <strong>{formatTemperature(weather.feels_like_c)}</strong>
-                  </article>
-                  <article className="metric">
-                    <span>Влажность</span>
-                    <strong>{weather.humidity}%</strong>
-                  </article>
-                  <article className="metric">
-                    <span>Ветер</span>
-                    <strong>{weather.wind_speed} м/с</strong>
-                  </article>
-                  <article className="metric">
-                    <span>Давление</span>
-                    <strong>{weather.pressure_mmhg} мм рт. ст.</strong>
-                  </article>
-                  <article className="metric">
-                    <span>Видимость</span>
-                    <strong>{weather.visibility_km} км</strong>
-                  </article>
-                </div>
-              </>
+            <button
+              className={`notification-settings__toggle ${
+                isTomorrowAlertEnabled
+                  ? 'notification-settings__toggle--off'
+                  : 'notification-settings__toggle--on'
+              }`}
+              disabled={!weather || !isCurrentFavorite}
+              onClick={handleToggleTomorrowAlert}
+              type="button"
+            >
+              {isTomorrowAlertEnabled ? 'Отключить уведомления' : 'Включить уведомления'}
+            </button>
+            {!isCurrentFavorite && (
+              <small className="hero__settings-note">
+                Добавьте выбранный город в избранное, чтобы включить уведомления.
+              </small>
             )}
-          </div>
-        </section>
-
-        <section className="hourly-card" ref={hourlySectionRef}>
+          </aside>
+<section className="hourly-card" ref={hourlySectionRef}>
           <div className="forecast-card__header">
             <div>
               <p className="section-label">Почасовой прогноз</p>
@@ -1828,9 +1965,6 @@ function App() {
               </form>
             </div>
           </div>
-          <button className="map__top-button" onClick={handleScrollToTop} type="button">
-            Перейти в начало
-          </button>
         </section>
 
         {toastLines.length > 0 && (
@@ -1859,3 +1993,4 @@ function App() {
 }
 
 export default App;
+
