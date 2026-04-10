@@ -1468,8 +1468,21 @@ function App() {
 
   const handleInstallApp = async () => {
     if (!installPromptEvent) {
+      const isIosSafari =
+        typeof window !== 'undefined' &&
+        /iphone|ipad|ipod/i.test(window.navigator.userAgent) &&
+        /safari/i.test(window.navigator.userAgent) &&
+        !/crios|fxios|edgios|chrome|android/i.test(window.navigator.userAgent);
+
+      if (isIosSafari) {
+        setToastLines([
+          'Для iPhone/iPad: нажмите Поделиться в Safari и выберите "На экран Домой".',
+        ]);
+        return;
+      }
+
       setToastLines([
-        'Установка пока недоступна. Откройте сайт по HTTPS и немного подождите повторного показа кнопки.',
+        'Установка пока недоступна в этом браузере. Попробуйте Chrome/Edge на HTTPS-домене.',
       ]);
       return;
     }
@@ -1591,7 +1604,7 @@ function App() {
     setToastLines([]);
   };
 
-  const canShowInstallButton = Boolean(installPromptEvent) && !isStandaloneApp;
+  const canShowInstallButton = !isStandaloneApp;
 
   return (
     <div className={`app-shell app-shell--${theme}`}>
