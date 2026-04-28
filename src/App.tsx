@@ -14,6 +14,9 @@ import './App.css';
 
 
 axios.defaults.baseURL = process.env.REACT_APP_API_URL || '';
+const PUBLIC_URL = process.env.PUBLIC_URL || '';
+const SERVICE_WORKER_URL = `${PUBLIC_URL}/sw.js`;
+const FAVICON_URL = `${PUBLIC_URL}/favicon.ico`;
 
 
 delete (L.Icon.Default.prototype as { _getIconUrl?: unknown })._getIconUrl;
@@ -655,7 +658,7 @@ function App() {
 
     const initializeServiceWorker = async () => {
       try {
-        const registration = await navigator.serviceWorker.register('/sw.js');
+        const registration = await navigator.serviceWorker.register(SERVICE_WORKER_URL);
         pushRegistrationRef.current = registration;
         const subscription = await registration.pushManager.getSubscription();
         if (!subscription) {
@@ -815,7 +818,7 @@ function App() {
         messages.length > 1 ? `Прогноз на завтра (${messages.length})` : 'Прогноз на завтра',
         {
           body: messages.join('\n'),
-          icon: '/favicon.ico',
+          icon: FAVICON_URL,
           tag: 'weather-tomorrow-alert',
         }
       );
@@ -833,7 +836,7 @@ function App() {
       return pushRegistrationRef.current;
     }
 
-    const registration = await navigator.serviceWorker.register('/sw.js');
+    const registration = await navigator.serviceWorker.register(SERVICE_WORKER_URL);
     pushRegistrationRef.current = registration;
     return registration;
   }, []);
@@ -1229,6 +1232,7 @@ function App() {
         condition: weather.condition,
       }
     : null;
+  const shouldShowHeroLoading = favorites.length > 0 && !heroCity && (loading || weatherLoading);
 
   const mapCenter = useMemo<[number, number]>(() => {
     if (selectedPoint) {
@@ -1352,6 +1356,20 @@ function App() {
     setFavorites((currentFavorites) =>
       currentFavorites.filter((favorite) => favorite.id !== favoriteId)
     );
+    const selectedPointId = selectedPoint
+      ? buildPointId(selectedPoint.latitude, selectedPoint.longitude)
+      : null;
+    const isRemovedFavoriteSelected =
+      selectedPointId === favoriteId || currentPointId === favoriteId;
+
+    if (isRemovedFavoriteSelected) {
+      setSelectionMode('city');
+      setSelectedCity('');
+      setSelectedPoint(null);
+      setCitySearchQuery('');
+      setWeather(null);
+      setError('');
+    }
     setTomorrowAlerts((currentAlerts) => {
       const nextAlerts = currentAlerts.filter((alertItem) => alertItem.id !== favoriteId);
       persistTomorrowAlerts(nextAlerts);
@@ -1547,7 +1565,7 @@ function App() {
             if (window.Notification.permission === 'granted') {
               new window.Notification('Тест push-уведомления', {
                 body: 'Проверка канала push: если вы видите это сообщение, уведомления работают.',
-                icon: '/favicon.ico',
+                icon: FAVICON_URL,
                 tag: 'manual-push-test-fallback',
               });
             }
@@ -1639,7 +1657,17 @@ function App() {
                 <section className="hero hero--centered hero--single" ref={heroSectionRef}>
           <div className="hero__panel hero__panel--summary">
             <p className="hero__panel-label">{overview?.title ?? 'Сводка'}</p>
-            <h2>{heroCity?.city ?? 'Выберите город на карте или в Избранном'}</h2>
+            <h2>
+              {heroCity?.city ?? (
+                shouldShowHeroLoading ? (
+                  <span className="hero-loading" aria-label="Загружаем данные о погоде" role="status">
+                    <span className="hero-loading__spinner" aria-hidden="true" />
+                  </span>
+                ) : (
+                  'Выберите город на карте или в Избранном'
+                )
+              )}
+            </h2>
             <p className="hero__temperature">
               {heroCity ? formatTemperature(heroCity.temperature_c) : '--'}
             </p>
@@ -1887,7 +1915,7 @@ function App() {
           <div className="map-card__header">
             <div>
               <p className="section-label">Карта</p>
-              <h3>Нажмите на карту для прогноза по координатам</h3>
+              <h3>Нажмите на карту для выбора города</h3>
             </div>
             <p>Базовая карта OpenStreetMap</p>
           </div>
@@ -1993,4 +2021,3 @@ function App() {
 }
 
 export default App;
-
